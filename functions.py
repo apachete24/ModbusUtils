@@ -2,6 +2,17 @@ from pwn import *
 import time
 
 
+def connection(ip="127.0.0.1", port=502):
+
+    try:
+        conn = remote(ip, port, timeout=2)
+
+    except Exception as e:
+        return f"Error de conexión: {e}"
+
+
+    return conn
+
 
 def build_modbus_read_coils_request(transaction_id, unit_id, start_address, quantity):
     
@@ -26,11 +37,8 @@ def build_modbus_read_coils_request(transaction_id, unit_id, start_address, quan
 
 
 
-def leer_coil(address, transaction_id, ip="127.0.0.1", port=502, unit_id=1):
+def leer_coil(conn, address, transaction_id, ip="127.0.0.1", port=502, unit_id=1):
     try:
-        # Conectar
-        conn = remote(ip, port, timeout=2)
-
         # Crear solicitud
         request = build_modbus_read_coils_request(
             transaction_id=transaction_id,
@@ -42,7 +50,7 @@ def leer_coil(address, transaction_id, ip="127.0.0.1", port=502, unit_id=1):
         # Enviar y recibir
         conn.send(request)
         response = conn.recv(1024)
-        conn.close()
+        
 
         # Validar tamaño mínimo esperado
         if len(response) < 10:
@@ -59,6 +67,57 @@ def leer_coil(address, transaction_id, ip="127.0.0.1", port=502, unit_id=1):
         return f"[ERROR] {e}"
 
 
+
+
+from pwn import *
+
+def build_modbus_write_single_coil_request(transaction_id, unit_id, address, estado):
+    protocol_id = 0
+    length = 6  # unit_id + function_code + address + value = 1 + 1 + 2 + 2
+    function_code = 5  # Write Single Coil
+
+    # Valor a escribir (0xFF00 = ON, 0x0000 = OFF)
+    value = 0xFF00 if estado.upper() == "ON" else 0x0000
+
+    request = (
+        p16(transaction_id, endian='big') +
+        p16(protocol_id, endian='big') +
+        p16(length, endian='big') +
+        p8(unit_id) +
+        p8(function_code) +
+        p16(address, endian='big') +
+        p16(value, endian='big')
+    )
+
+    return request
+
+
+
+def escribir_coil(conn, address, estado, transaction_id, ip="127.0.0.1", port=502, unit_id=1):
+
+    try:
+
+        # Crear solicitud
+        request = build_modbus_write_single_coil_request(
+            transaction_id=transaction_id,
+            unit_id=unit_id,
+            address=address,
+            estado=estado
+        )
+
+        # Enviar y recibir
+        conn.send(request)
+        response = conn.recv(1024)
+        
+
+        # Validar que el servidor respondió correctamente
+        if response[7] != 5:  # function code
+            raise ValueError(f"Código de función inesperado: {response[7]}")
+
+        return f"Coil {address} escrito a '{estado.upper()}' correctamente."
+
+    except Exception as e:
+        return f"[ERROR] {e}"
 
 
 
@@ -83,7 +142,7 @@ def scan_coil_range(ip="127.0.0.1", port=502, unit_id=1, start_addr=0, end_addr=
             )
             conn.send(request)
             response = conn.recv(1024)
-            conn.close()
+            
 
             if len(response) >= 9:
                 function_code = response[7]
