@@ -2,18 +2,9 @@ from functions import *
 
 conn = connection()
 
-# Escritura
-escribir_coil(conn, 16, "on", 1)
-escribir_coil(conn, 36, "on", 1)
-escribir_coil(conn, 52, "on", 1)
-escribir_coil(conn, 78, "on", 1)
+for i in range(1, 400):
+    escribir_coil(conn, address=i, estado="ON", unit_id=25)
 
-
-# Lectura
-print(leer_coil(conn, 16,1))
-print(leer_coil(conn, 36,1))
-print(leer_coil(conn, 52, 1))
-print(leer_coil(conn, 78, 1))
-
+scan_coil_range(conn, unit_id=25, end_addr=400)
 
 conn.close()
